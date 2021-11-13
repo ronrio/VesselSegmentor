@@ -101,7 +101,6 @@ while True:
 
         #Can now add any other object to the Plotter scene:
         # plt += Text2D('some message', font='arial')
-
         plt.show().close()
 
     if event == "-ISO_SURFACE_BROWSER-":

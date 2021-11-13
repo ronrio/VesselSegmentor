@@ -1,3 +1,4 @@
+import gdcm
 import PySimpleGUI as sg
 
 from vedo import *
@@ -15,10 +16,9 @@ import scipy.ndimage
 
 import numpy as np
 
-# # Load the data from a numpy saved array
-# id = 0
-# imgs = np.load('./images_after_resampling_0.npy')
-# vol = Volume(imgs)
+import threading
+import concurrent.futures
+import queue
 
 def load_scan(path):
     #Loading and sorting the slices and determining the thickness
@@ -74,12 +74,33 @@ def resample(image, scan, new_spacing=[1,1,1]):
     
     return image, new_spacing
 
+def extract_volume():
+    # Get list of files in folder
+    # Load stack of .DICOM images
+    global dicom_path, vol
+
+    patient = load_scan(dicom_path)
+    # Convert the HU standard values into pixel values
+    imgs = get_pixels_hu(patient)
+    imgs_after_resamp, spacing = resample(imgs, patient, [1,1,1])
+    vol = Volume(imgs_after_resamp)
+    return 
+
+gui_queue = queue.Queue()
+global dicom_path, vol
+
 layout = [
     [
         sg.Text("DICOM Directory"),
         sg.In(size=(25, 1), enable_events=True, key="-FOLDER-"),
         sg.FolderBrowse(),
     ],
+    [sg.Text(key='-OUT-',
+            auto_size_text=True,
+            text='Please Select the path of the dicom image from the browse button !!',
+            text_color='White',
+            pad = ((2,2),(0,0)),
+            justification='center')],
     [
             sg.Button("3D viewer #1 (surface_viewer)", key="-SURFACE_PLOTTER-"),
             sg.Button("3D viewer #2 (slice_viewer)", key="-SLICER_PLOTTER-"),
@@ -90,63 +111,64 @@ layout = [
 
 window = sg.Window("DICOM Viewer", layout)
 
+## STARTING long run by starting a thread
+# with concurrent.futures.ThreadPoolExecutor() as executor:
+isExtracted = False
 while True:
     event, values = window.read()
     if event == "Exit" or event == sg.WIN_CLOSED:
         break
-
-    print(event)
-
-
-    if event == "-SLICER_PLOTTER-":
-    # Slices shower
-        plt = SlicerPlotter(vol,
-                            bg='white', bg2='lightblue',
-                            cmaps=(["bone_r"]),
-                            useSlider3D=False, alpha=1
-                        )
-
-
-        #Can now add any other object to the Plotter scene:
-        # plt += Text2D('some message', font='arial')
-
-        plt.show().close()
-
-    if event == "-SURFACE_PLOTTER-":
-        #plt = IsosurfaceBrowser(vol, c='gold') # Plotter instance
-
-        show(vol)
-
-    if event == "-SURFACE-SLICE-VIEWER-":
-
-        #plt_iso = IsosurfaceBrowser(vol, c='gold') # Plotter instance
-
-        s_plt = SlicerPlotter(vol,
-                            bg='white', bg2='lightblue',
-                            cmaps=(["bone_r"]),
-                            useSlider3D=False,
-                            )
-
-        plt = Plotter(shape=(1, 1))
-        plt.show(vol, at=0)
-
-        s_plt.show().close()
-        # Can now add any other object to the Plotter scene:
-        # plt += Text2D('some message', font='arial')
-
-
     # Folder name was filled in, make a list of files in the folder
     if event == "-FOLDER-":
-        folder = values["-FOLDER-"]
+        dicom_path = values["-FOLDER-"]
         try:
-            # Get list of files in folder
-            # Load stack of .DICOM images
-            patient = load_scan(folder)
-            # Convert the HU standard values into pixel values
-            imgs = get_pixels_hu(patient)
-            imgs_after_resamp, spacing = resample(imgs, patient, [1,1,1])
-            vol = Volume(imgs_after_resamp)
-        except:
-            vol = Volume()
-        
+            window['-OUT-'].update('Loading dicom slices and apply volume processing ...');
+            window['-OUT-'].update(text_color='White');
+            window.perform_long_operation(extract_volume, '-EXTRACTION DONE-')
+        except BaseException as err:
+            raise(f"Unexpected {err=}, {type(err)=}")
+    elif event  == '-EXTRACTION DONE-':
+        isExtracted = True
+        window['-OUT-'].update('Volume extraction is done, You can view it by choosing one the below options !!')
+        window['-OUT-'].update(text_color='#AAFF00')
+    if event == "-SLICER_PLOTTER-":
+        # Slices shower
+            if isExtracted:
+                plt = SlicerPlotter(vol,
+                                    bg='white', bg2='lightblue',
+                                    cmaps=(["bone_r"]),
+                                    useSlider3D=False, alpha=1
+                                )
+                #Can now add any other object to the Plotter scene:
+                # plt += Text2D('some message', font='arial')
+                plt.show().close()
+            else:
+                window['-OUT-'].update('Volume is not ready to be viewed yet !!')
+                window['-OUT-'].update(text_color='#FF0000')
+
+
+    if event == "-SURFACE_PLOTTER-":
+        if isExtracted:
+            show(vol)
+        else:
+            window['-OUT-'].update('Volume is not ready to be viewed yet !!')
+            window['-OUT-'].update(text_color='#FF0000')
+
+    if event == "-SURFACE-SLICE-VIEWER-":
+        if isExtracted:
+            s_plt = SlicerPlotter(vol,
+                                bg='white', bg2='lightblue',
+                                cmaps=(["bone_r"]),
+                                useSlider3D=False,
+                                )
+
+            plt = Plotter(shape=(1, 1))
+            plt.show(vol, at=0)
+
+            s_plt.show().close()
+        else:
+            window['-OUT-'].update('Volume is not ready to be viewed yet !!')
+            window['-OUT-'].update(text_color='#FF0000')
+        # # Can now add any other object to the Plotter scene:
+        # plt += Text2D('some message', font='arial')
 window.close()

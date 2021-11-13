@@ -25,6 +25,7 @@ print('\n'.join(g[:5]))
 # Loop over the image files and store everything into a list.
 # 
 
+#============ FUNCTION DEFINITIONS ===============
 def load_scan(path):
     slices = [pydicom.read_file(path + '/' + s) for s in os.listdir(path)]
     slices.sort(key = lambda x: int(x.InstanceNumber))
@@ -75,25 +76,6 @@ def sample_stack(stack, rows=6, cols=6, start_with=10, show_every=3):
         ax[int(i/rows),int(i % rows)].axis('off')
     plt.show()
 
-id=0
-# Load stack of .DICOM images
-patient = load_scan(dicom_f_dir)
-
-# Convert the HU standard values into pixel values
-imgs = get_pixels_hu(patient)
-
-# Save the images as numpy array
-np.save(output_path + "fullimages_%d.npy" % (id), imgs)
-
-# Load the data from a numpy saved array
-id = 0
-imgs_to_process = np.load(output_path+'fullimages_{}.npy'.format(id))
-
-
-# # Re-sampling 
-print("Slice Thickness: %f" % patient[0].SliceThickness)
-print("Pixel Spacing (row, col): (%f, %f) " % (patient[0].PixelSpacing[0], patient[0].PixelSpacing[1]))
-
 def resample(image, scan, new_spacing=[1,1,1]):
     # Determine current pixel spacing
     spacing = np.array([scan[0].SliceThickness, scan[0].PixelSpacing[0], scan[0].PixelSpacing[1]], dtype=np.float32)
@@ -107,6 +89,26 @@ def resample(image, scan, new_spacing=[1,1,1]):
     image = scipy.ndimage.interpolation.zoom(image, real_resize_factor)
     
     return image, new_spacing
+
+# id=0
+# # Load stack of .DICOM images
+# patient = load_scan(dicom_f_dir)
+
+# # Convert the HU standard values into pixel values
+# imgs = get_pixels_hu(patient)
+
+# # Save the images as numpy array
+# np.save(output_path + "fullimages_%d.npy" % (id), imgs)
+
+# Load the data from a numpy saved array
+id = 0
+imgs_to_process = np.load(output_path+'fullimages_{}.npy'.format(id))
+
+
+# # Re-sampling 
+print("Slice Thickness: %f" % patient[0].SliceThickness)
+print("Pixel Spacing (row, col): (%f, %f) " % (patient[0].PixelSpacing[0], patient[0].PixelSpacing[1]))
+
 
 print("Shape before resampling\t", imgs_to_process.shape)
 imgs_after_resamp, spacing = resample(imgs_to_process, patient, [1,1,1])
