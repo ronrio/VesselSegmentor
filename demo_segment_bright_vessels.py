@@ -9,20 +9,20 @@ ImageType = itk.Image[itk.F, 3]
 
 #im1 = itk.imread("../Data/MRI-Cases/mra.mha", itk.F)
 im1 = itk.imread("../dicom/study1", itk.F)
-
+print(im1.shape)
 
 resampler = ttk.ResampleImage.New( Input=im1, MakeHighResIso=True )
 resampler.Update()
 im1iso = resampler.GetOutput()
 
 
-# imMath = ttk.ImageMath[ImageType,ImageType].New( Input=im1iso )
-# imMath.Blur(1)
-# imBlur = imMath.GetOutput()
+imMath = ttk.ImageMath[ImageType,ImageType].New( Input=im1iso )
+imMath.Blur(1)
+imBlur = imMath.GetOutput()
 
-# numSeeds = 8#40
+numSeeds = 8#40
 
-# vSeg = ttk.SegmentTubes[ImageType].New()
+vSeg = ttk.SegmentTubes[ImageType].New()
 # vSeg.SetInput(im1iso)
 # vSeg.SetVerbose(True)
 # vSeg.SetMinCurvature(0.0)

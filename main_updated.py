@@ -89,6 +89,12 @@ def extract_volume():
 gui_queue = queue.Queue()
 global dicom_path, vol
 
+patient = load_scan("../dicom/study2")
+# Convert the HU standard values into pixel values
+imgs = get_pixels_hu(patient)
+imgs_after_resamp, spacing = resample(imgs, patient, [1,1,1])
+dumb_vol = Volume(imgs_after_resamp)
+
 layout = [
     [
         sg.Text("DICOM Directory"),
@@ -165,7 +171,13 @@ while True:
             plt = Plotter(shape=(1, 1))
             plt.show(vol, at=0)
 
-            s_plt.show().close()
+            dump_plt = SlicerPlotter(dumb_vol,
+                                bg='white', bg2='lightblue',
+                                cmaps=(["jet"]),
+                                useSlider3D=False,
+                                )
+
+            s_plt.show(dump_plt, at=1).close()
         else:
             window['-OUT-'].update('Volume is not ready to be viewed yet !!')
             window['-OUT-'].update(text_color='#FF0000')
