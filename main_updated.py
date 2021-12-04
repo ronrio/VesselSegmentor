@@ -1,4 +1,4 @@
-import gdcm
+#import gdcm
 import PySimpleGUI as sg
 
 from vedo import *
