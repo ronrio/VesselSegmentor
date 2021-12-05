@@ -5,11 +5,10 @@ from vedo import *
 from vedo.applications import IsosurfaceBrowser, SlicerPlotter
 
 import itk
-
+from itk import TubeTK as ttk
 import pydicom
 
 import os
-
 import matplotlib.pyplot as plt
 from matplotlib import pyplot, cm
 import scipy.ndimage
@@ -22,7 +21,12 @@ import queue
 import threading
 
 #Global variable initializations 
-global dicom_path, vol, sigma, alpha1, alpha2, imgs_after_resamp
+global dicom_path, vol, sigma, alpha1, alpha2, imgs_after_resamp, imBlur, mha_seg, im_iso
+
+mha_seg = False
+
+color_text_window = "#443A31"
+color_back_window = "white"
 
 # 'Volume is not ready to be viewed yet !!'
 def log_in_red(window, msg):
@@ -33,12 +37,12 @@ def log_in_red(window, msg):
 # 'Volume is not ready to be viewed yet !!'
 def log_in_green(window, msg):
     window['-OUT-'].update(msg)
-    window['-OUT-'].update(text_color='#AAFF00')
+    window['-OUT-'].update(text_color='#1a5b00')
     return
 
 def log_in_process(window, msg):
     window['-OUT-'].update(msg)
-    window['-OUT-'].update(text_color='white')
+    window['-OUT-'].update(text_color='black')
     return
 
 def load_scan(window, path):
@@ -118,87 +122,203 @@ def extract_volume(window, dicom_path):
         log_in_red(window, 'Please re-enter a valid dicom image path ...')
         return False
 
-def segmentVessel(sigma, alpha1, alpha2):
+def extract_mha(window, mha_file):
+    # Get list of files in folder
+    # Load stack of .DICOM images
+    global imBlur, im_iso, mha_seg
+
+    extension  = mha_file.split(".")[-1]
+    print(extension)
+    if extension == "mha":
+        mha_seg = True
+        log_in_process(window, 'Loading mha file and applying volume processing ...')
+
+        ImageType = itk.Image[itk.F, 3]
+        im_mha = itk.imread(mha_file, itk.F)
+
+        resampler = ttk.ResampleImage.New(Input=im_mha, MakeHighResIso=True)
+        resampler.Update()
+        im_iso = resampler.GetOutput()
+
+        imMath = ttk.ImageMath[ImageType, ImageType].New(Input=im_iso)
+        imMath.Blur(0.1)
+        imBlur = imMath.GetOutput()
+
+        return True
+
+    else:
+        log_in_red(window, 'Please re-enter a valid MHA image file ...')
+        return False
+
+def segmentVessel(sigma, alpha1, alpha2, numSeeds):
     # Convert back to ITK, data is copied
-    global vol
-    imgs_itk = itk.image_from_array(imgs_after_resamp)
+    global vol, mha_seg, imBlur, im_iso
 
-    hessian_image = itk.hessian_recursive_gaussian_image_filter(
-        imgs_itk, sigma=sigma
-    )
+    print(mha_seg)
+    if not mha_seg:
+        imgs_itk = itk.image_from_array(imgs_after_resamp)
 
-    vesselness_filter = itk.Hessian3DToVesselnessMeasureImageFilter[
-        itk.ctype("float")
-    ].New()
-    vesselness_filter.SetInput(hessian_image)
-    vesselness_filter.SetAlpha1(alpha1)
-    vesselness_filter.SetAlpha2(alpha2)
+        hessian_image = itk.hessian_recursive_gaussian_image_filter(
+            imgs_itk, sigma=sigma
+        )
 
-    # Copy of itk.Image, pixel data is copied
-    vol = Volume(itk.array_from_image(vesselness_filter.GetOutput()))
-    return
+        vesselness_filter = itk.Hessian3DToVesselnessMeasureImageFilter[
+            itk.ctype("float")
+        ].New()
+        vesselness_filter.SetInput(hessian_image)
+        vesselness_filter.SetAlpha1(alpha1)
+        vesselness_filter.SetAlpha2(alpha2)
 
-layout = [
-    [
-        sg.Text("DICOM Directory"),
-        sg.In(size=(100, 1), enable_events=True, key="-FOLDER-"),
-        sg.FolderBrowse(),
-    ],
-    [sg.Text(key='-OUT-',
-            auto_size_text=True,
-            text='Please Select the path of the dicom image from the browse button !!',
-            text_color='White',
-            pad = ((5,5),(5,5)),
-            justification='center')],
-    [
-        sg.Text("Segmentation parameters", justification='center')
-    ],
-    [
-        [sg.Text("Sigma", justification = 'center')],
-        [sg.Slider(key="-SIGMA-",
+        # Copy of itk.Image, pixel data is copied
+        vol = Volume(itk.array_from_image(vesselness_filter.GetOutput()))
+
+    else:
+        ImageType = itk.Image[itk.F, 3]
+
+        vSeg = ttk.SegmentTubes[ImageType].New()
+        vSeg.SetInput(im_iso)
+        vSeg.SetVerbose(True)
+        vSeg.SetMinCurvature(0.0)
+        vSeg.SetMinRoundness(0.0)
+        vSeg.SetRadiusInObjectSpace(0.2)
+        vSeg.SetRadiusMin(0.0001)
+        vSeg.SetRadiusMax(8)
+        vSeg.SetDataMinMaxLimits(30, 256)
+        vSeg.SetSeedMask(imBlur)
+        vSeg.SetUseSeedMaskAsProbabilities(True)
+        vSeg.SetSeedMaskMaximumNumberOfPoints(int(numSeeds))
+
+        vSeg.ProcessSeeds()
+
+        tubeMaskImage = vSeg.GetTubeMaskImage()
+        tube_Group = vSeg.GetTubeGroup()
+
+        TubesToImageFilterType = ttk.ConvertTubesToImage[ImageType]
+        tubesToImageFilter = TubesToImageFilterType.New()
+        tubesToImageFilter.SetUseRadius(True)
+        tubesToImageFilter.SetTemplateImage(im_iso)
+        tubesToImageFilter.SetInput(tube_Group)
+        tubesToImageFilter.Update()
+
+        outputImage = tubesToImageFilter.GetOutput()
+
+        volume = itk.array_from_image(outputImage)
+        vol = Volume(volume)
+    return True
+
+col1 = [
+        [sg.Text("Sigma", justification = 'center', text_color=color_text_window, background_color=color_back_window)],
+        [
+        sg.Slider(key="-SIGMA-",
         range=(0, 10),
         resolution=0.1,
         default_value=0,
-        size=(100,15),
+        size=(50,15),
         orientation='horizontal',
-        font=('Helvetica', 12),
-        enable_events=True)],
-    ],
-    [
-        [sg.Text("Alpha1", justification = 'center')],
+        font=('Helvetica', 10),
+        enable_events=True,
+        background_color = "white",
+        text_color=color_text_window)],
+        [sg.Text("Alpha1", justification = 'center', text_color=color_text_window, background_color=color_back_window)],
         [sg.Slider(key="-ALPHA1-",
         range=(0.0, 5.0),
         resolution=0.1,
         default_value=0,
-        size=(100,15),
+        size=(50,15),
         orientation='horizontal',
-        font=('Helvetica', 12),
-        enable_events=True)],
-    ],
-    [
-        [sg.Text("Alpha2",justification = 'center')],
+        font=('Helvetica', 10),
+        enable_events=True,
+       background_color="white",
+       text_color=color_text_window)],
+        [sg.Text("Alpha2",justification = 'center', text_color=color_text_window, background_color=color_back_window)],
         [sg.Slider(key="-ALPHA2-",
         range=(0.0,5.0),
         resolution=0.1,
         default_value=0.5,
-        size=(100,15),
+        size=(50,15),
         orientation='horizontal',
-        font=('Helvetica', 12),
-        enable_events=True)],
-        
-    ],
-    [
-        sg.Button('Apply Segmentation', key='-SEGMENT-')
-    ],
-    [
-            sg.Button("3D viewer #1 (surface_viewer)", key="-SURFACE_PLOTTER-"),
-            sg.Button("3D viewer #2 (slice_viewer)", key="-SLICER_PLOTTER-"),
-            sg.Button("3D viewer #3 (view both on different windows)", key="-SURFACE-SLICE-VIEWER-"),
+        font=('Helvetica', 10),
+        enable_events=True,
+       background_color="white",
+       text_color=color_text_window)
+         ]
+    ]
 
+col2 = [
+        [sg.Text("Number Seeds", justification = 'center', text_color=color_text_window, background_color=color_back_window)],
+        [sg.Slider(key="-NUM SEEDS-",
+        range=(1, 200),
+        resolution=1,
+        default_value=40,
+        size=(50,15),
+        orientation='horizontal',
+        font=('Helvetica', 10),
+        enable_events=True,
+       background_color="white",
+       text_color=color_text_window)]
+]
+
+col3 = [
+        [sg.Text("   ", justification = 'center', text_color=color_text_window, background_color=color_back_window)],
+]
+
+layout = [
+    [sg.Image('./icon.png', size=(300,150), background_color="white", expand_x=True, expand_y=True)],
+    [sg.Text(key='-OUT-',
+            auto_size_text=True,
+            text='Please Select the path of the dicom image from the browse button',
+            text_color=color_text_window,
+            pad = ((5,5),(5,5)),
+            justification='left',
+            size = (100,2), background_color=color_back_window,
+            font="italic 12")
+     ],
+    [
+        sg.Text("DICOM Directory", text_color=color_text_window, background_color=color_back_window),
+        sg.In(size=(30, 1), enable_events=True, key="-FOLDER-", ),
+        sg.FolderBrowse(),
+        sg.Text("        MHA File", text_color=color_text_window, background_color=color_back_window),
+        sg.In(size=(30, 1), enable_events=True, key="-MHA_FILE-"),
+        sg.FileBrowse()
+    ],
+    [
+        sg.Text("___________________________________________________________________________            ___________________________________________________________________________",
+                justification='center', text_color=color_text_window,
+                background_color=color_back_window, font="italic 12")
+    ],
+    [
+        sg.Text("Segmentation parameters", justification='center', text_color=color_text_window,
+                background_color=color_back_window, font="italic 12")
+    ],
+    [sg.Column(col1, background_color= color_back_window),sg.Column(col3, background_color= color_back_window),sg.Column(col2, background_color= color_back_window)],
+    [
+        sg.Text("", justification='center', text_color=color_text_window, background_color=color_back_window)
+    ],
+    [
+        sg.Text("", justification='center', text_color=color_text_window, background_color=color_back_window)
+    ],
+    [
+        sg.Text("                                                                                     ", justification='center',
+                text_color=color_text_window, background_color=color_back_window),
+        sg.Button('Apply Segmentation', key='-SEGMENT-', mouseover_colors = "#189DE2")
+    ],
+    [
+        sg.Text("", justification='center', text_color=color_text_window, background_color=color_back_window)
+    ],
+    [
+            sg.Text("                 ", justification='center',
+                text_color=color_text_window, background_color=color_back_window),
+            sg.Button("3D viewer #1 (surface_viewer)", key="-SURFACE_PLOTTER-",mouseover_colors = "#189DE2"),
+            sg.Button("3D viewer #2 (slice_viewer)", key="-SLICER_PLOTTER-", mouseover_colors = "#189DE2"),
+            sg.Button("3D viewer #3 (view both on different windows)", key="-SURFACE-SLICE-VIEWER-", mouseover_colors = "#189DE2"),
+
+    ],
+    [
+        sg.Text("", justification='center', text_color=color_text_window, background_color=color_back_window)
     ],
 ]
 
-window = sg.Window("DICOM Viewer", layout)
+window = sg.Window("DICOM Viewer", layout, background_color = "white", button_color = ("#189DE2", "#f1f3f7"), use_ttk_buttons=False, font="italic 12 bold")
 
 ## STARTING long run by starting a thread
 # with concurrent.futures.ThreadPoolExecutor() as executor:
@@ -225,6 +345,20 @@ while True:
         else:
             log_in_red(window, 'Please re-enter a valid dicom image path ...')
 
+    if event == "-MHA_FILE-":
+        try:
+            window.perform_long_operation(lambda: extract_mha(window,values['-MHA_FILE-']), '-EXTRACTION mha DONE-')
+        except BaseException as err:
+            raise(f"Unexpected {err=}, {type(err)=}")
+
+
+    elif event  == '-EXTRACTION mha DONE-':
+        isExtracted = values['-EXTRACTION mha DONE-']
+        if isExtracted:
+            log_in_green(window,'Volume extraction is done, You can view it by choosing one the below options !!')
+        else:
+            log_in_red(window, 'Please re-enter a valid mha image file ...')
+
 
     if event == "-SIGMA-":
         if isExtracted:
@@ -243,10 +377,16 @@ while True:
         else:
             log_in_process(window,'Alpha2 value is updated !')
 
+    if event == "-NUM SEEDS-":
+        if isExtracted:
+            log_in_process(window,'Num Seeds value is updated ! Press \'Apply Segmentation\' button to segment !')
+        else:
+            log_in_process(window,'Num Seeds value is updated !')
+
     if event == "-SEGMENT-":
         if isExtracted:
             log_in_process(window, 'Segmentation process starts ...')
-            window.perform_long_operation(lambda: segmentVessel(values['-SIGMA-'], values['-ALPHA1-'], values['-ALPHA2-']), '-SEGMENTATION IS DONE-')
+            window.perform_long_operation(lambda: segmentVessel(values['-SIGMA-'], values['-ALPHA1-'], values['-ALPHA2-'], values['-NUM SEEDS-']), '-SEGMENTATION IS DONE-')
             InSegment_process = True;
         else:
             log_in_red(window, 'Volume is not ready to be viewed yet !!')
@@ -260,9 +400,9 @@ while True:
         # Slices shower
             if isExtracted and not InSegment_process:
                 plt = SlicerPlotter(vol,
-                                    bg='white', bg2='lightblue',
-                                    cmaps=["GnBu"],
-                                    useSlider3D=False, alpha=1
+                                    bg='black', bg2='white',
+                                    cmaps=(["gist_ncar_r", "jet", "Spectral_r", "hot_r", "bone_r"]),
+                                    useSlider3D=False,
                                 )
                 #Can now add any other object to the Plotter scene:
                 # plt += Text2D('some message', font='arial')
@@ -281,8 +421,8 @@ while True:
     if event == "-SURFACE-SLICE-VIEWER-":
         if isExtracted and not InSegment_process:
             s_plt = SlicerPlotter(vol,
-                            bg='white', bg2='lightblue',
-                            cmaps=(["bone_r"]),
+                            bg='black', bg2='white',
+                            cmaps=(["gist_ncar_r", "jet", "Spectral_r", "hot_r", "bone_r"]),
                             useSlider3D=False,
                             )
 
@@ -291,6 +431,6 @@ while True:
 
             s_plt.show().close()
         else:
-            log_in_red(window,'Volume is not ready to be viewed yet !!')
+            log_in_red(window,'Volume is not ready to be viewed yet')
 
 window.close()
