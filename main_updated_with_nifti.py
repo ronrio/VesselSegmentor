@@ -156,9 +156,10 @@ def segmentVessel(sigma, alpha1, alpha2, t):
     vesselness_filter.SetAlpha1(alpha1)
     vesselness_filter.SetAlpha2(alpha2)
 
+    #Determine the threshold, it should be between min and max depending on the values given by the user
     max_intensity = np.amax(itk.array_from_image(vesselness_filter.GetOutput()))
     min_intensity = np.amin(itk.array_from_image(vesselness_filter.GetOutput()))
-    threshold = (max_intensity-min_intensity)*t
+    threshold = min_intensity+(max_intensity-min_intensity)*t
     print("Max intensity in the segmentation result: ", np.amax(max_intensity))
     print("Min intensity in the segmentation result: ", np.amin(min_intensity))
     print("Thresholding by the value of: ", threshold)
