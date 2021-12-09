@@ -140,7 +140,7 @@ def extract_volume(window, dicom_path):
         log_in_red(window, 'Please re-enter a valid dicom image path ...')
         return False
 
-def segmentVessel(sigma, alpha1, alpha2):
+def segmentVessel(sigma, alpha1, alpha2, t):
     # Convert back to ITK, data is copied
     global vol
     imgs_itk = itk.image_from_array(imgs_after_resamp)
@@ -158,7 +158,7 @@ def segmentVessel(sigma, alpha1, alpha2):
 
     max_intensity = np.amax(itk.array_from_image(vesselness_filter.GetOutput()))
     min_intensity = np.amin(itk.array_from_image(vesselness_filter.GetOutput()))
-    threshold = (max_intensity-min_intensity)/4
+    threshold = (max_intensity-min_intensity)*t
     print("Max intensity in the segmentation result: ", np.amax(max_intensity))
     print("Min intensity in the segmentation result: ", np.amin(min_intensity))
     print("Thresholding by the value of: ", threshold)
@@ -221,6 +221,19 @@ layout = [
         
     ],
     [
+        [sg.Text("Threshold", justification='center')],
+        [sg.Slider(key="-THRESHOLD-",
+                   range=(0.0, 1.0),
+                   resolution=0.01,
+                   default_value=0.3,
+                   size=(100, 15),
+                   orientation='horizontal',
+                   font=('Helvetica', 12),
+                   enable_events=True)],
+
+    ],
+
+    [
         sg.Button('Apply Segmentation', key='-SEGMENT-')
     ],
     [
@@ -276,10 +289,16 @@ while True:
         else:
             log_in_process(window,'Alpha2 value is updated !')
 
+    if event == "-THRESHOLD-":
+        if isExtracted:
+            log_in_process(window, 'Threshold value is updated ! Press \'Apply Segmentation\' button to segment !')
+        else:
+            log_in_process(window, 'Threshold value is updated !')
+
     if event == "-SEGMENT-":
         if isExtracted:
             log_in_process(window, 'Segmentation process starts ...')
-            window.perform_long_operation(lambda: segmentVessel(values['-SIGMA-'], values['-ALPHA1-'], values['-ALPHA2-']), '-SEGMENTATION IS DONE-')
+            window.perform_long_operation(lambda: segmentVessel(values['-SIGMA-'], values['-ALPHA1-'], values['-ALPHA2-'], values['-THRESHOLD-']), '-SEGMENTATION IS DONE-')
             InSegment_process = True;
         else:
             log_in_red(window, 'Volume is not ready to be viewed yet !!')
