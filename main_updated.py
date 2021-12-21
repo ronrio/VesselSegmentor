@@ -302,7 +302,7 @@ layout = [
         enable_events=True)],
     ],
     [
-        [sg.Text("Alpha2",justification = 'center')],
+        [sg.Text("Alpha2",justification = 'center',)],
         [sg.Slider(key="-ALPHA2-",
         range=(0.0,5.0),
         resolution=0.1,
@@ -314,7 +314,7 @@ layout = [
         
     ],
     [
-        [sg.Text("Threshold", justification='center')],
+        [sg.Text("Threshold", justification='center', visible=False, key='-THRES-TITLE-')],
         [sg.Slider(key="-THRESHOLD-",
                    range=(0.0, 1.0),
                    resolution=0.01,
@@ -322,7 +322,8 @@ layout = [
                    size=(100, 15),
                    orientation='horizontal',
                    font=('Helvetica', 12),
-                   enable_events=True)],
+                   enable_events=True,
+                   visible=False)],
 
     ],
 
@@ -411,6 +412,9 @@ while True:
         x_segs = segmentation_slices
         y_segs = segmentation_slices.transpose(1,0,2)
         z_segs = segmentation_slices.transpose(2,0,1)
+        #Enable viewing threshold slider
+        window['-THRES-TITLE-'].Update(visible = True)
+        window['-THRESHOLD-'].Update(visible=True)
         window["-X_SLIDER-"].update(range=(0, x_imgs.shape[0]-1), disabled=False)
         window["-Y_SLIDER-"].update(range=(0, y_imgs.shape[0]-1), disabled=False)
         window["-Z_SLIDER-"].update(range=(0, z_imgs.shape[0]-1), disabled=False)
