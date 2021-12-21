@@ -14,7 +14,7 @@ import numpy as np
 import os
 from glob import glob
 
-dicom_f_dir = '/Users/noorio/Downloads/Fall\'21/IT_management/CQ500CT0 CQ500CT0/Unknown Study/CT 4cc sec 150cc D3D on'
+dicom_f_dir = '/Users/noorio/Downloads/Fall\'21/IT_management/dicom/study1'
 output_path = working_path = "./"
 g = glob(dicom_f_dir + '/*.dcm')
 
@@ -36,7 +36,7 @@ def load_scan(path):
         
     for s in slices:
         s.SliceThickness = slice_thickness
-        
+    print(slices[0])
     return slices
 
 def get_pixels_hu(scans):
@@ -92,7 +92,7 @@ def resample(image, scan, new_spacing=[1,1,1]):
 
 # id=0
 # # Load stack of .DICOM images
-# patient = load_scan(dicom_f_dir)
+patient = load_scan(dicom_f_dir)
 
 # # Convert the HU standard values into pixel values
 # imgs = get_pixels_hu(patient)
@@ -101,21 +101,21 @@ def resample(image, scan, new_spacing=[1,1,1]):
 # np.save(output_path + "fullimages_%d.npy" % (id), imgs)
 
 # Load the data from a numpy saved array
-id = 0
-imgs_to_process = np.load(output_path+'fullimages_{}.npy'.format(id))
+# id = 0
+# imgs_to_process = np.load(output_path+'fullimages_{}.npy'.format(id))
 
 
-# # Re-sampling 
-print("Slice Thickness: %f" % patient[0].SliceThickness)
-print("Pixel Spacing (row, col): (%f, %f) " % (patient[0].PixelSpacing[0], patient[0].PixelSpacing[1]))
+# # # Re-sampling 
+# print("Slice Thickness: %f" % patient[0].SliceThickness)
+# print("Pixel Spacing (row, col): (%f, %f) " % (patient[0].PixelSpacing[0], patient[0].PixelSpacing[1]))
 
 
-print("Shape before resampling\t", imgs_to_process.shape)
-imgs_after_resamp, spacing = resample(imgs_to_process, patient, [1,1,1])
-print("Shape after resampling\t", imgs_after_resamp.shape)
+# print("Shape before resampling\t", imgs_to_process.shape)
+# imgs_after_resamp, spacing = resample(imgs_to_process, patient, [1,1,1])
+# print("Shape after resampling\t", imgs_after_resamp.shape)
 
-# Save the images as numpy array
-np.save(output_path + "images_after_resampling_%d.npy" % (id), imgs_after_resamp)
+# # Save the images as numpy array
+# np.save(output_path + "images_after_resampling_%d.npy" % (id), imgs_after_resamp)
 
 # # # Visualizing the data using Vedo
 # vol = Volume(imgs_after_resamp)
