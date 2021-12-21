@@ -21,7 +21,7 @@ import queue
 import threading
 
 #Global variable initializations 
-global dicom_path, vol, sigma, alpha1, alpha2, imgs_after_resamp, imBlur, mha_seg, im_iso
+global dicom_path, vol, sigma, alpha1, alpha2, imgs_after_resamp, imBlur, mha_seg, im_iso, vol_complete
 
 mha_seg = False
 
@@ -125,7 +125,7 @@ def extract_volume(window, dicom_path):
 def extract_mha(window, mha_file):
     # Get list of files in folder
     # Load stack of .DICOM images
-    global imBlur, im_iso, mha_seg
+    global imBlur, im_iso, mha_seg, vol_complete
 
     extension  = mha_file.split(".")[-1]
     print(extension)
@@ -139,10 +139,13 @@ def extract_mha(window, mha_file):
         resampler = ttk.ResampleImage.New(Input=im_mha, MakeHighResIso=True)
         resampler.Update()
         im_iso = resampler.GetOutput()
+        vol_complete = Volume(itk.array_from_image(im_iso))
 
         imMath = ttk.ImageMath[ImageType, ImageType].New(Input=im_iso)
-        imMath.Blur(0.1)
+        imMath.Blur(0.01)
         imBlur = imMath.GetOutput()
+
+        imBlur = im_iso
 
         return True
 
@@ -413,8 +416,20 @@ while True:
 
     if event == "-SURFACE_PLOTTER-":
         if isExtracted and not InSegment_process:
-            plt = Plotter(shape=(1, 1))
-            plt.show(vol)
+            #plt = Plotter(shape=(1, 1))
+            #plt = IsosurfaceBrowser(c='red')
+            plt = Plotter(shape=(1, 2))
+            #plt_complete = IsosurfaceBrowser(vol_complete, c='gold')  # Plotter instance
+
+
+            plt.show(vol_complete, "MRI", at=0)
+            plt.show(vol, "segmentation", at=1)
+
+            plt.addSlider2D()
+            interactive().close()
+            #plt_complete.close()
+
+
         else:
             log_in_red(window,'Volume is not ready to be viewed yet !!')
 
@@ -427,7 +442,7 @@ while True:
                             )
 
             plt = Plotter(shape=(1, 1))
-            plt.show(vol, at=0)
+            plt.show(vol, at=0).close()
 
             s_plt.show().close()
         else:
