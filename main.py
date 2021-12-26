@@ -24,7 +24,7 @@ InSegment_process = False
 segReady = False
 img_type = '-NIFTI-'
 
-# Frontend colors
+# color variables
 color_text_window = "#443A31"
 color_back_window = "white"
 
@@ -36,25 +36,54 @@ sigma_slider = create_param_slider_layout("SIGMA", (0, 10), 0.1, 1)
 alpha1_slider = create_param_slider_layout("ALPHA1", (0, 5.0), 0.1, 0.5)
 alpha2_slider = create_param_slider_layout("ALPHA2", (0, 5.0), 0.1, 2.0)
 
+col1 = [
+
+    ]
+
+col2 = [
+        [sg.Text("Number Seeds", justification = 'center', text_color=color_text_window, background_color=color_back_window)],
+        [sg.Slider(key="-NUM SEEDS-",
+        range=(1, 200),
+        resolution=1,
+        default_value=40,
+        size=(50,15),
+        orientation='horizontal',
+        font=('Helvetica', 10),
+        enable_events=True,
+       background_color="white",
+       text_color=color_text_window)]
+]
+
+col3 = [
+        [sg.Text("   ", justification = 'center', text_color=color_text_window, background_color=color_back_window)],
+]
+
 layout = [
+    [sg.Image('./icon.png', size=(300,150), background_color="white", expand_x=True, expand_y=True)],
     [
-        sg.Text("DICOM Directory / Directory of Nifti file"),
-        sg.In(size=(100, 1), enable_events=True, key="-FOLDER-"),
-        sg.FolderBrowse(),
+        sg.Text("DICOM Directory / Directory of Nifti file", text_color=color_text_window, background_color=color_back_window),
+        sg.In(size=(30, 1), enable_events=True, key="-FOLDER-"),
+        sg.FolderBrowse()
     ],
     [sg.Text(key='-OUT-',
             auto_size_text=True,
-            text='Please Select the path of the dicom/nifti image from the browse button !!',
-            text_color='White',
+            text='Please Select the path of the dicom/nifti image from the browse button ',
+            text_color=color_text_window,
             pad = ((5,5),(5,5)),
-            justification='center')],
+            justification='left',  background_color=color_back_window,
+            font="italic 10")],
+    [
+        sg.Text("___________________________________________________________________________ ",
+                justification='center', text_color=color_text_window,
+                background_color=color_back_window, font="italic 12")
+    ],
     [
     sigma_slider,
     alpha1_slider,
     alpha2_slider,
     ],
     [
-        [sg.Text("Threshold", justification='center', visible=False, key='-THRES-TITLE-')],
+        [sg.Text("Threshold", justification='center', visible=False, key='-THRES-TITLE-', text_color=color_text_window, background_color=color_back_window)],
         [sg.Slider(key="-THRESHOLD-",
                    range=(0.0, 1.0),
                    resolution=0.01,
@@ -63,7 +92,10 @@ layout = [
                    orientation='horizontal',
                    font=('Helvetica', 12),
                    enable_events=True,
-                   visible=False)],
+                   visible=False,
+                   background_color="white",
+                   text_color=color_text_window
+                   )],
 
     ],
     [[
@@ -75,12 +107,12 @@ layout = [
             sg.Button("3D viewer #3 (view both on different windows)", key="-SURFACE-SLICE-VIEWER-"),
 
     ]],
-    [   sg.Column(x_slice_layout),
-        sg.Column(y_slice_layout),
-        sg.Column(z_slice_layout),],
+    [   sg.Column(x_slice_layout, background_color=color_back_window),
+        sg.Column(y_slice_layout, background_color=color_back_window),
+        sg.Column(z_slice_layout, background_color=color_back_window),],
 ]
 
-window = sg.Window("DICOM Viewer", layout)
+window = sg.Window("DICOM Viewer", layout, background_color = "white", button_color = ("#189DE2", "#f1f3f7"), use_ttk_buttons=False, font="italic 10 bold")
 
 while True:
     event, values = window.read()
@@ -98,7 +130,7 @@ while True:
     elif event  == '-EXTRACTION DONE-':
         isExtracted, imgs, img_type = values['-EXTRACTION DONE-']
         if isExtracted:
-            log_in_green(window,'Volume extraction is done, You can view it by choosing one the below options !!')
+            log_in_green(window,'Volume extraction is done, You can view it by choosing one the below options ')
             vol = Volume(imgs)
             imgs_after_resamp = imgs
 
@@ -125,12 +157,12 @@ while True:
             InSegment_process = True;
             
         else:
-            log_in_red(window, 'Volume is not ready to be viewed yet !!')
+            log_in_red(window, 'Volume is not ready to be viewed yet ')
 
     if event == '-SEGMENTATION IS DONE-':
         InSegment_process = False
         segReady = True
-        log_in_green(window,'Initial Segmentation is ready, You can view it by choosing one the below options. Tune \'threshold\' slider for better vessel extraction !!')
+        log_in_green(window,'Initial Segmentation is ready, You can view it by choosing one the below options. Tune \'threshold\' slider for better vessel extraction ')
         
         # Initialize the slice viewers
         segmentation_slices = values['-SEGMENTATION IS DONE-']
@@ -185,7 +217,7 @@ while True:
                                 )
                 plt.show().close()
             else:
-                log_in_red(window,'Volume is not ready to be viewed yet !!')
+                log_in_red(window,'Volume is not ready to be viewed yet ')
 
 
     if event == "-SURFACE_PLOTTER-":
@@ -193,7 +225,7 @@ while True:
             plt = Plotter(shape=(1, 1))
             plt.show(vol)
         else:
-            log_in_red(window,'Volume is not ready to be viewed yet !!')
+            log_in_red(window,'Volume is not ready to be viewed yet ')
 
     if event == "-SURFACE-SLICE-VIEWER-":
         if isExtracted and not InSegment_process:
@@ -208,6 +240,6 @@ while True:
 
             s_plt.show().close()
         else:
-            log_in_red(window,'Volume is not ready to be viewed yet !!')
+            log_in_red(window,'Volume is not ready to be viewed yet ')
 
 window.close()
