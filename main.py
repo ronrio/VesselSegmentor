@@ -6,7 +6,7 @@ from vedo.applications import IsosurfaceBrowser, SlicerPlotter
 import matplotlib.pyplot as plt
 
 from GUILogging import log_in_red, log_in_green, log_in_process
-from medialImageReader import extract_volume
+from medialImageReader import extract_volume, extract_mha
 from segmentCTImage import segment_vessel
 from layoutComponents import create_slice_layout, create_param_slider_layout
 from sliceMaskViewer import show_slice
@@ -36,22 +36,16 @@ sigma_slider = create_param_slider_layout("SIGMA", (0, 10), 0.1, 1)
 alpha1_slider = create_param_slider_layout("ALPHA1", (0, 5.0), 0.1, 0.5)
 alpha2_slider = create_param_slider_layout("ALPHA2", (0, 5.0), 0.1, 2.0)
 
-col1 = [
+seeds_slider = create_param_slider_layout("SEEDS", (10, 100), 1, 50)
 
+col1 = [
+    sigma_slider[0], sigma_slider[1],
+    alpha1_slider[0], alpha1_slider[1],
+    alpha2_slider[0], alpha2_slider[1]
     ]
 
 col2 = [
-        [sg.Text("Number Seeds", justification = 'center', text_color=color_text_window, background_color=color_back_window)],
-        [sg.Slider(key="-NUM SEEDS-",
-        range=(1, 200),
-        resolution=1,
-        default_value=40,
-        size=(50,15),
-        orientation='horizontal',
-        font=('Helvetica', 10),
-        enable_events=True,
-       background_color="white",
-       text_color=color_text_window)]
+    seeds_slider[0], seeds_slider[1]
 ]
 
 col3 = [
@@ -59,11 +53,14 @@ col3 = [
 ]
 
 layout = [
-    [sg.Image('./icon.png', size=(300,150), background_color="white", expand_x=True, expand_y=True)],
+    [sg.Image('./icon.png', size=(250,100), background_color="white", expand_x=True, expand_y=True)],
     [
-        sg.Text("DICOM Directory / Directory of Nifti file", text_color=color_text_window, background_color=color_back_window),
+        sg.Text("Directory of DICOM/Nifti file", text_color=color_text_window, background_color=color_back_window),
         sg.In(size=(30, 1), enable_events=True, key="-FOLDER-"),
-        sg.FolderBrowse()
+        sg.FolderBrowse(),
+        sg.Text("        MHA File", text_color=color_text_window, background_color=color_back_window),
+        sg.In(size=(30, 1), enable_events=True, key="-MHA_FILE-"),
+        sg.FileBrowse()
     ],
     [sg.Text(key='-OUT-',
             auto_size_text=True,
@@ -73,15 +70,11 @@ layout = [
             justification='left',  background_color=color_back_window,
             font="italic 10")],
     [
-        sg.Text("___________________________________________________________________________ ",
+        sg.Text("___________________________________________________________________________            ___________________________________________________________________________ ",
                 justification='center', text_color=color_text_window,
                 background_color=color_back_window, font="italic 12")
     ],
-    [
-    sigma_slider,
-    alpha1_slider,
-    alpha2_slider,
-    ],
+    [sg.Column(col1, background_color= color_back_window),sg.Column(col3, background_color= color_back_window),sg.Column(col2, background_color= color_back_window)],
     [
         [sg.Text("Threshold", justification='center', visible=False, key='-THRES-TITLE-', text_color=color_text_window, background_color=color_back_window)],
         [sg.Slider(key="-THRESHOLD-",
@@ -146,6 +139,30 @@ while True:
 
         else:
             log_in_red(window, 'Please re-enter a valid dicom/nifti image path ...')
+    if event == "-MHA_FILE-":
+        try:
+            window.perform_long_operation(lambda: extract_mha(window,values['-MHA_FILE-']), '-EXTRACTION mha DONE-')
+        except BaseException as err:
+            raise(f"Unexpected {err=}, {type(err)=}")
+
+    elif event == '-EXTRACTION mha DONE-':
+        isExtracted_mha, volume_mha, itk_img = values['-EXTRACTION mha DONE-']
+        if isExtracted_mha:
+            log_in_green(window,'Volume extraction is done, You can view it by choosing one the below options !!')
+            vol = Volume(volume_mha)
+            imgs_after_resamp = volume_mha
+
+            # Reset Initial state of the program
+            segReady = False
+            # Disable viewing threshold slider
+            window['-THRES-TITLE-'].Update(visible=False)
+            window['-THRESHOLD-'].Update(visible=False)
+            # Disable viewing the slice with the segmentation mask
+            enable_slice_viewer('X', window, False)
+            enable_slice_viewer('Y', window, False)
+            enable_slice_viewer('Z', window, False)
+        else:
+            log_in_red(window, 'Please re-enter a valid mha image file ...')
 
     if event in ["-SIGMA-", "-ALPHA1-", "-ALPHA2-"]:
         update_seg_param_val(event[1:-1], isExtracted, window)
@@ -153,9 +170,14 @@ while True:
     if event == "-SEGMENT-":
         if isExtracted:
             log_in_process(window, 'Segmentation process starts ...')
-            window.perform_long_operation(lambda: segment_vessel(imgs_after_resamp, values['-SIGMA-'], values['-ALPHA1-'], values['-ALPHA2-'], window, img_type), '-SEGMENTATION IS DONE-')
+            window.perform_long_operation(lambda: segment_vessel(imgs=imgs_after_resamp, sigma=values['-SIGMA-'], alpha1=values['-ALPHA1-'], alpha2=values['-ALPHA2-'], window=window, img_type=img_type), '-SEGMENTATION IS DONE-')
             InSegment_process = True;
-            
+
+        elif isExtracted_mha:
+            log_in_process(window, 'Segmentation process starts ...')
+            window.perform_long_operation(
+                lambda: segment_vessel(window=window, mha=True, im_iso=itk_img, imBlur=itk_img, numSeeds=values['-SEEDS-']), '-SEGMENTATION IS DONE-')
+            InSegment_process = True;
         else:
             log_in_red(window, 'Volume is not ready to be viewed yet ')
 
@@ -209,7 +231,7 @@ while True:
     #=============== VOLUME PLOTTING ==================
     if event == "-SLICER_PLOTTER-":
         # Slices shower
-            if isExtracted and not InSegment_process:
+            if (isExtracted or isExtracted_mha) and not InSegment_process:
                 plt = SlicerPlotter(vol,
                                     bg='white', bg2='lightblue',
                                     cmaps=['gist_ncar_r', 'hot_r', 'bone_r', 'jet', 'Spectral_r'],
@@ -221,14 +243,14 @@ while True:
 
 
     if event == "-SURFACE_PLOTTER-":
-        if isExtracted and not InSegment_process:
+        if (isExtracted or isExtracted_mha) and not InSegment_process:
             plt = Plotter(shape=(1, 1))
             plt.show(vol)
         else:
             log_in_red(window,'Volume is not ready to be viewed yet ')
 
     if event == "-SURFACE-SLICE-VIEWER-":
-        if isExtracted and not InSegment_process:
+        if (isExtracted or isExtracted_mha) and not InSegment_process:
             s_plt = SlicerPlotter(vol,
                             bg='white', bg2='lightblue',
                             cmaps=(['gist_ncar_r', 'hot_r', 'bone_r', 'jet', 'Spectral_r']),

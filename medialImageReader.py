@@ -3,12 +3,16 @@ import pydicom
 
 from glob import glob
 import os
+from vedo import Volume
 
 import scipy.ndimage
 import PySimpleGUI as sg
 
 from GUILogging import log_in_red, log_in_green, log_in_process
 import numpy as np
+
+import itk
+from itk import TubeTK as ttk
 
 def get_pixels_hu(scans):
     """
@@ -136,3 +140,32 @@ def extract_volume(window, dicom_path):
     else:
         log_in_red(window, 'Please re-enter a valid dicom image path ...')
         return False, imgs, img_type
+
+
+def extract_mha(window, mha_file):
+    # Get list of files in folder
+    # Load stack of .DICOM images
+
+    extension = mha_file.split(".")[-1]
+
+    if extension == "mha":
+        log_in_process(window, 'Loading mha file and applying volume processing ...')
+
+        ImageType = itk.Image[itk.F, 3]
+        im_mha = itk.imread(mha_file, itk.F)
+
+        resampler = ttk.ResampleImage.New(Input=im_mha, MakeHighResIso=True)
+        resampler.Update()
+        im_iso = resampler.GetOutput()
+        vol_complete = itk.array_from_image(im_iso)
+
+        #imMath = ttk.ImageMath[ImageType, ImageType].New(Input=im_iso)
+        #imMath.Blur(0.01)
+        #imBlur = imMath.GetOutput()
+        #imBlur = im_iso
+
+        return True, vol_complete, im_iso
+
+    else:
+        log_in_red(window, 'Please re-enter a valid MHA image file ...')
+        return False

@@ -46,7 +46,7 @@ def create_param_slider_layout(param_name, range_val, resolution, default_val):
         range=range_val,
         resolution=resolution,
         default_value=default_val,
-        size=(50,15),
+        size=(60,15),
         orientation='horizontal',
         font=('Helvetica', 10),
         enable_events=True,
