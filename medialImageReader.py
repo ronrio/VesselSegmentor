@@ -80,7 +80,7 @@ def load_scan(window, path):
     """
     # Check if the data passed are of type DICOM or NIFTY
     isDicom = any('.dcm' in filename for filename in os.listdir(path))
-    isNifty = any('.nii' in filename for filename in os.listdir(path))
+    isNifty = any('.nii.gz' in filename for filename in os.listdir(path))
     if isDicom:
 
         # Get list of files in folder
@@ -107,7 +107,7 @@ def load_scan(window, path):
             return
 
     elif isNifty:
-            nifti_dir = glob(os.path.join(path,'*.nii'))[0]
+            nifti_dir = glob(os.path.join(path,'*.nii.gz'))[0]
             nifti_file = nibabel.load(nifti_dir)
             imgs_after_resamp = nifti_file.get_fdata()
             # vol = Volume(imgs_after_resamp)
