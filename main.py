@@ -24,6 +24,10 @@ InSegment_process = False
 segReady = False
 img_type = '-NIFTI-'
 
+# Frontend colors
+color_text_window = "#443A31"
+color_back_window = "white"
+
 x_slice_layout = create_slice_layout('X')
 y_slice_layout = create_slice_layout('Y')
 z_slice_layout = create_slice_layout('Z')
