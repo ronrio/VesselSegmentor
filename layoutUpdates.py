@@ -1,4 +1,5 @@
 from sliceMaskViewer import show_slice
+from GUILogging import *
 import PySimpleGUI as sg
 
 def update_seg_param_val(param_name, isExtracted, window):

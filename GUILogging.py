@@ -26,7 +26,7 @@ def log_in_green(window, msg):
     Returns:
     """
     window['-OUT-'].update(msg)
-    window['-OUT-'].update(text_color='#AAFF00')
+    window['-OUT-'].update(text_color='#075513')
     return
 
 
@@ -41,5 +41,5 @@ def log_in_process(window, msg):
     Returns:
     """
     window['-OUT-'].update(msg)
-    window['-OUT-'].update(text_color='white')
+    window['-OUT-'].update(text_color='black')
     return

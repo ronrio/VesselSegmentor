@@ -164,7 +164,7 @@ while True:
         else:
             log_in_red(window, 'Please re-enter a valid mha image file ...')
 
-    if event in ["-SIGMA-", "-ALPHA1-", "-ALPHA2-"]:
+    if event in ["-SIGMA-", "-ALPHA1-", "-ALPHA2-", "-SEEDS-"]:
         update_seg_param_val(event[1:-1], isExtracted, window)
 
     if event == "-SEGMENT-":
